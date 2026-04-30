@@ -1,28 +1,85 @@
-﻿using System.Windows;
-using System.Windows.Media;
+﻿using AlgorithmPerformanceEvaluator.Helpers; // استدعاء ملف الرسم البياني
+using AlgorithmPerformanceEvaluator.Logic;
+using AlgorithmPerformanceEvaluator.Models;
+using AlgorithmPerformanceEvaluator.Services;
+using System;
+using System.Collections.Generic;
+using System.Windows;
 
 namespace AlgorithmPerformanceEvaluator
 {
     public partial class MainWindow : Window
     {
+        private readonly CompilerService _compiler = new();
+        private readonly PerformanceRunner _runner = new();
+        private readonly ComplexityAnalyzer _analyzer = new();
+
         public MainWindow()
         {
             InitializeComponent();
+
+            // نص افتراضي صحيح لا يسبب خطأ في الـ Compilation
+            txtCodeEditor.Text = "// Write your algorithm logic here.\n" +
+                         "// Use the 'arr' variable as your input array.\n\n" +
+                         "Array.Sort(arr);";
         }
 
         private void btnManual_Click(object sender, RoutedEventArgs e)
         {
+            // هيظهر الخانة بتاعة الـ Manual ويصغر الـ Editor شوية
             manualInputPanel.Visibility = Visibility.Visible;
+            txtCodeEditor.Height = 350;
         }
 
         private void btnAuto_Click(object sender, RoutedEventArgs e)
         {
+            // هيخفي خانة الـ Manual ويرجع الـ Editor لحجمه
             manualInputPanel.Visibility = Visibility.Collapsed;
+            txtCodeEditor.Height = 400;
         }
 
-        private void btnRun_Click(object sender, RoutedEventArgs e)
+        private async void btnRun_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show("Run Clicked!");
+            btnRun.IsEnabled = false;
+            lblComplexity.Text = "Analyzing...";
+
+            try
+            {
+                // 1. تجميع الكود
+                string code = txtCodeEditor.Text;
+                var compiledFunction = await _compiler.CompileAsync(code);
+
+                // 2. تحديد الأحجام (يمكنك زيادتها لدقة أكبر)
+                var sizes = new List<int> { 100, 500, 1000, 2000, 3000 };
+
+                // 3. قياس الأداء
+                EvaluationResult results = await _runner.RunAsync(compiledFunction, sizes);
+
+                // 4. تحليل التعقيد
+                var finalAnalysis = _analyzer.Analyze(results);
+
+                // 5. عرض النتائج والرسم البياني
+                DisplayResults(finalAnalysis);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"{ex.Message}", "Analysis Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                lblComplexity.Text = "O(?)";
+            }
+            finally
+            {
+                btnRun.IsEnabled = true;
+            }
+        }
+
+        private void DisplayResults(EvaluationResult result)
+        {
+            // تحديث النصوص
+            lblComplexity.Text = result.Complexity;
+            lblConfidence.Text = $"{result.Confidence}% Confidence - {result.Description}";
+
+            // استدعاء الـ Helper لرسم البيانات على MyChart
+            ChartHelper.Render(MyChart, result);
         }
     }
 }

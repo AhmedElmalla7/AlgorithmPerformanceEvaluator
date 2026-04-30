@@ -8,8 +8,13 @@ namespace AlgorithmPerformanceEvaluator.Services
     public class CompilerService
     {
         private static readonly ScriptOptions _opts = ScriptOptions.Default
-            .WithImports("System", "System.Linq", "System.Collections.Generic")
-            .WithReferences(typeof(object).Assembly);
+        .WithImports("System", "System.Linq", "System.Collections.Generic", "System.Threading")
+        .WithReferences
+        (
+            typeof(object).Assembly,
+            typeof(Enumerable).Assembly, // للـ Linq
+            typeof(List<>).Assembly      // للـ Collections
+        );
 
         public async Task<Func<int[], object?>> CompileAsync(string userCode)
         {
@@ -17,15 +22,16 @@ namespace AlgorithmPerformanceEvaluator.Services
                 throw new ArgumentException("User code cannot be empty.");
 
             string wrapped = $@"
-                using System;
-                using System.Linq;
-                using System.Collections.Generic;
+            using System;
+            using System.Linq;
+            using System.Collections.Generic;
 
-                Func<int[], object?> fn = (int[] arr) =>
-                {{
-                    {userCode}
-                }};
-                return fn;
+            Func<int[], object?> fn = (int[] arr) =>
+            {{
+                {userCode}
+                return null; // ضمان وجود قيمة مسترجعة دائماً
+            }};
+            return fn;
             ";
 
             try
