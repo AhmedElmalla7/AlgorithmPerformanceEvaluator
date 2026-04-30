@@ -42,5 +42,23 @@ namespace AlgorithmPerformanceEvaluator.Logic
                         .Select(int.Parse)
                         .ToArray();
         }
+        public static List<int[]> Expand(int[] baseArray, List<int> sizes)
+        {
+            var result = new List<int[]>();
+
+            foreach (var size in sizes)
+            {
+                var newArr = new int[size];
+
+                for (int i = 0; i < size; i++)
+                {
+                    newArr[i] = baseArray[i % baseArray.Length];
+                }
+
+                result.Add(newArr);
+            }
+
+            return result;
+        }
     }
 }

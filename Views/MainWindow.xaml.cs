@@ -49,11 +49,29 @@ namespace AlgorithmPerformanceEvaluator
                 string code = txtCodeEditor.Text;
                 var compiledFunction = await _compiler.CompileAsync(code);
 
-                // 2. تحديد الأحجام (يمكنك زيادتها لدقة أكبر)
                 var sizes = new List<int> { 100, 500, 1000, 2000, 3000 };
 
-                // 3. قياس الأداء
-                EvaluationResult results = await _runner.RunAsync(compiledFunction, sizes);
+                bool isManual = manualInputPanel.Visibility == Visibility.Visible;
+
+                EvaluationResult results;
+
+                if (isManual)
+                {
+                    // 🟢 Manual Mode
+                    var baseArray = DataGenerator.Parse(txtArrayInput.Text);
+
+                    if (baseArray.Length == 0)
+                        throw new Exception("Invalid manual input!");
+
+                    var dataSets = DataGenerator.Expand(baseArray, sizes);
+
+                    results = await _runner.RunManualAsync(compiledFunction, dataSets, sizes);
+                }
+                else
+                {
+                    // 🔵 Auto Mode
+                    results = await _runner.RunAsync(compiledFunction, sizes);
+                }
 
                 // 4. تحليل التعقيد
                 var finalAnalysis = _analyzer.Analyze(results);
