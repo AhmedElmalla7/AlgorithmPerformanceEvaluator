@@ -52,5 +52,24 @@ namespace AlgorithmPerformanceEvaluator.Logic
                 return result;
             });
         }
+        public async Task<EvaluationResult> RunManualAsync(
+            Func<int[], object?> fn,
+            List<int[]> dataSets,
+            List<int> sizes)
+        {
+            return await Task.Run(() =>
+            {
+                var result = new EvaluationResult();
+
+                for (int i = 0; i < dataSets.Count; i++)
+                {
+                    result.InputSizes.Add(sizes[i]);
+
+                    result.AvgTimes.Add(Measure(fn, dataSets[i]));
+                }
+
+                return result;
+            });
+        }
     }
 }
