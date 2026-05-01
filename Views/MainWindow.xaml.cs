@@ -49,7 +49,9 @@ namespace AlgorithmPerformanceEvaluator
                 string code = txtCodeEditor.Text;
                 var compiledFunction = await _compiler.CompileAsync(code);
 
-                var sizes = new List<int> { 100, 500, 1000, 2000, 3000 };
+                // بدلاً من 100 و 500 و 1000...
+                // أرقام كافية للـ O(n) ومش قاتلة للـ O(n^2)
+                var sizes = new List<int> { 100, 200, 300, 400, 500 };
 
                 bool isManual = manualInputPanel.Visibility == Visibility.Visible;
 
