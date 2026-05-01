@@ -8,15 +8,15 @@ namespace AlgorithmPerformanceEvaluator.Services
     public class ComplexityAnalyzer
     {
         private static readonly (string Name, string Desc, double Slope)[] _classes =
-        {
-            ("O(1)",       "Constant — not affected by input size",          0.00),
-            ("O(log n)",   "Logarithmic — halves the problem each step",     0.50),
-            ("O(n)",       "Linear — processes each element once",           1.00),
-            ("O(n log n)", "Linearithmic — divide and conquer",              1.20),
-            ("O(n²)",      "Quadratic — nested loops",                       2.00),
-            ("O(n³)",      "Cubic — triple nested loops",                    3.00),
-            ("O(2ⁿ)",      "Exponential — doubles with each element",        5.00),
-        };
+            {
+                ("O(1)",         "Constant", 0.05), // رفعنا الصفر شوية
+                ("O(log n)",     "Logarithmic", 0.40),
+                ("O(n)",         "Linear", 1.00),
+                ("O(n log n)",   "Linearithmic", 1.30),
+                ("O(n²)",        "Quadratic", 1.90), // قللنا الـ 2 شوية
+                ("O(n³)",        "Cubic", 2.70),     // قللنا الـ 3 عشان يلقطها أسرع
+                ("O(2ⁿ)",        "Exponential", 4.50),
+            };
 
         public EvaluationResult Analyze(EvaluationResult result)
         {
