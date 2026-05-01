@@ -8,7 +8,8 @@ namespace AlgorithmPerformanceEvaluator.Models
         public List<double> AvgTimes { get; set; } = new();
         public List<double> BestTimes { get; set; } = new();
         public List<double> WorstTimes { get; set; } = new();
-        public string Complexity { get; set; } = "";
+
+        public string Complexity { get; set; } = "N/A";
         public string Description { get; set; } = "";
         public double Confidence { get; set; }
     }
