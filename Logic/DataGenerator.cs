@@ -22,7 +22,7 @@ namespace AlgorithmPerformanceEvaluator.Logic
         }
 
         // 1. الأحجام العادية لـ O(n) و O(n log n)
-        public static List<int> GetDefaultSizes() => new() { 1000, 2000, 4000, 7000, 10000 };
+        public static List<int> GetDefaultSizes() => new() { 10000, 50000, 100000, 500000, 1000000 };
 
         // 2. أحجام متوسطة لـ O(n²) و O(n³) لضمان عدم حدوث Timeout
         public static List<int> GetSmallSizes() => new() { 100, 200, 350, 500, 700 };

@@ -20,14 +20,17 @@ namespace AlgorithmPerformanceEvaluator
             InitializeComponent();
 
             // Default code shown in editor
+            // النص الافتراضي المحدث ليتناسب مع المترجم المرن والـ Smart Scaling
             txtCodeEditor.Text =
-    "public object MyAlgorithm(int[] arr)\n" +
-    "{\n" +
-    "    // Write your logic here\n" +
-    "    \n" +
-    "    \n" +
-    "    return arr; // <--- This line prevents the error CS0161\n" +
-    "}";
+                "public object MyAlgorithm(int[] arr)\n" +
+                "{\n" +
+                "    // Tip: The analyzer will auto-detect loops or recursion to scale input sizes.\n" +
+                "    \n" +
+                "    // Example: \n" +
+                "    // Array.Sort(arr);\n" +
+                "    \n" +
+                "    return arr; \n" +
+                "}";
         }
 
         // ===== MODE BUTTONS =====
@@ -61,18 +64,26 @@ namespace AlgorithmPerformanceEvaluator
         private async void btnRun_Click(object sender, RoutedEventArgs e)
         {
             btnRun.IsEnabled = false;
-            btnRun.Content = "Analyzing...";
+            btnRun.Content = "Analyzing Performance...";
             lblComplexity.Text = "...";
 
             try
             {
                 string code = txtCodeEditor.Text;
 
-                // استخدام المترجم المرن الجديد
+                // 1. استخدام المترجم المرن المحدث
                 var compiledFunction = await _compiler.CompileFlexibleAsync(code);
 
-                // استخراج اسم الدالة للفحص لاحقاً (للـ Recursion)
-                string methodName = System.Text.RegularExpressions.Regex.Match(code, @"\b\w+\s+(\w+)\s*\(int\s*\[\s*\]").Groups[1].Value;
+                // 2. استخراج اسم الدالة بطريقة آمنة باستخدام الميثود التي أضفناها للسيرفس
+                string methodName;
+                try
+                {
+                    methodName = CompilerService.ExtractMethodName(code);
+                }
+                catch
+                {
+                    methodName = "MyAlgorithm"; // اسم افتراضي في حالة فشل الاستخراج
+                }
 
                 EvaluationResult result;
 
@@ -86,44 +97,52 @@ namespace AlgorithmPerformanceEvaluator
                 {
                     List<int> sizes;
 
-                    // --- فحص نمط الكود الذكي ---
+                    // --- منطق فحص نمط الكود الذكي (Smart Scaling) ---
 
-                    // هل الدالة تستدعي نفسها؟ (Recursion اكتشاف)
+                    // فحص الـ Recursion: هل اسم الدالة يتكرر داخل الكود؟
                     bool isRecursive = System.Text.RegularExpressions.Regex.Matches(code, $@"\b{methodName}\s*\(").Count >= 2;
 
+                    // فحص عدد الحلقات (Loops) لتحديد التعقيد المتوقع
                     int loopCount = System.Text.RegularExpressions.Regex.Matches(code, @"\bfor\b|\bwhile\b").Count;
 
                     if (isRecursive)
                     {
+                        // أحجام ميكروسكوبية للـ O(2^n) لتجنب الانهيار
                         sizes = DataGenerator.GetExponentialSizes();
-                        lblConfidence.Text = "Exponential/Recursive pattern detected.";
+                        lblConfidence.Text = "Recursive pattern detected. Using micro-scales.";
                     }
                     else if (loopCount >= 3)
                     {
-                        sizes = DataGenerator.GetSmallSizes();
-                        lblConfidence.Text = "Cubic complexity detected. Scaling down.";
+                        // أحجام صغيرة جداً للـ O(n^3)
+                        sizes = new List<int> { 50, 100, 150, 200, 250 };
+                        lblConfidence.Text = "Cubic pattern detected. Scaling down input.";
                     }
                     else if (loopCount == 2)
                     {
+                        // أحجام متوسطة للـ O(n^2)
                         sizes = DataGenerator.GetSmallSizes();
                         lblConfidence.Text = "Quadratic pattern detected.";
                     }
                     else
                     {
+                        // أحجام كبيرة للـ O(n) أو O(n log n)
                         sizes = DataGenerator.GetDefaultSizes();
-                        lblConfidence.Text = "Standard complexity pattern.";
+                        lblConfidence.Text = "Linear/Logarithmic pattern detected.";
                     }
 
+                    // تشغيل الاختبار الفعلي
                     result = await _runner.RunAsync(compiledFunction, sizes);
                 }
 
+                // 3. تحليل النتائج رياضياً وعرضها
                 var finalResult = _analyzer.Analyze(result);
                 DisplayResults(finalResult);
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message, "Error");
+                MessageBox.Show(ex.Message, "Execution Error");
                 lblComplexity.Text = "O(?)";
+                lblConfidence.Text = "Analysis failed.";
             }
             finally
             {
