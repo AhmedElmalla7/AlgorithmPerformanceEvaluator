@@ -23,6 +23,10 @@ namespace AlgorithmPerformanceEvaluator.Logic
         
         public static List<int> GetExponentialSizes() => new() { 14, 16, 18, 20, 22 };
 
+      
+        public static List<int> GetLogLinearSizes() =>
+            new() { 5000, 10000, 25000, 50000, 100000 };
+
         public static List<int[]> Expand(int[] baseArray, List<int> sizes)
         {
             var result = new List<int[]>();
