@@ -10,60 +10,65 @@ namespace AlgorithmPerformanceEvaluator.Logic
     public class PerformanceRunner
     {
         private const int WarmupRuns = 3;
-        private const int MeasureRuns = 7;
-        private const double TimeoutMs = 3000; // Limit each run to 3 seconds
+        private const int DefaultMeasureRuns = 15; // Increased samples for higher confidence
+        private const double TimeoutMs = 1500;    // Lower timeout for better responsiveness
 
         /// <summary>
-        /// Measures the execution time of a function using multiple samples.
-        /// Uses a trimmed mean (removes outliers) for higher accuracy.
+        /// Measures function execution time with high precision by filtering outliers.
         /// </summary>
         private double Measure(Func<int[], object?> fn, int[] input)
         {
+            // Use 10 runs for small inputs (like 2^n) and 15 for standard inputs
+            int actualMeasureRuns = input.Length < 100 ? 10 : DefaultMeasureRuns;
+
             // --- 1. Warm-up Phase ---
-            // Run the code without measuring to let the JIT compiler optimize it
-            for (int i = 0; i < WarmupRuns; i++)
+            // Prepare the JIT compiler
+            for (int i = 0; i < (input.Length < 100 ? 1 : WarmupRuns); i++)
             {
-                try { fn((int[])input.Clone()); }
-                catch { /* Ignore errors during warmup */ }
+                try { fn(input); }
+                catch { break; }
             }
 
-            // Cleanup memory before starting actual measurement
+            // Clear memory to minimize Garbage Collector interference
             GC.Collect();
             GC.WaitForPendingFinalizers();
             GC.Collect();
 
             // --- 2. Measurement Phase ---
-            var samples = new List<double>(MeasureRuns);
+            var samples = new List<double>();
             var sw = new Stopwatch();
 
-            for (int run = 0; run < MeasureRuns; run++)
+            for (int run = 0; run < actualMeasureRuns; run++)
             {
-                var copy = (int[])input.Clone();
+                // Only clone for larger arrays to protect data integrity
+                var testInput = input.Length > 500 ? (int[])input.Clone() : input;
+
                 sw.Restart();
-                try { fn(copy); }
+                try { fn(testInput); }
                 catch { break; }
                 sw.Stop();
 
                 double ms = sw.Elapsed.TotalMilliseconds;
                 samples.Add(ms);
 
-                // Stop if the execution is already too slow
+                // Exit if the run exceeds the timeout limit
                 if (ms > TimeoutMs) break;
             }
 
             if (samples.Count == 0) return 0;
-            if (samples.Count == 1) return samples[0];
+            if (samples.Count < 3) return samples.Average();
 
-            // --- 3. Result Calculation ---
-            // Sort samples and remove the fastest and slowest to avoid noise
+            // --- 3. Trimmed Mean (Noise Reduction) ---
+            // Sort and remove the top and bottom 20% to eliminate spikes
             samples.Sort();
-            var trimmed = samples.Skip(1).Take(samples.Count - 2).ToList();
+            int skipCount = Math.Max(1, samples.Count / 5);
+            var trimmed = samples.Skip(skipCount).Take(samples.Count - 2 * skipCount).ToList();
 
             return trimmed.Count > 0 ? trimmed.Average() : samples.Average();
         }
 
         /// <summary>
-        /// Automatic Mode: Tests sorted, random, and reversed data for each size.
+        /// Auto Mode: Tests Sorted, Random, and Reversed cases for each size.
         /// </summary>
         public async Task<EvaluationResult> RunAsync(
             Func<int[], object?> fn,
@@ -79,7 +84,7 @@ namespace AlgorithmPerformanceEvaluator.Logic
                     int n = sizes[i];
                     result.InputSizes.Add(n);
 
-                    // Test the 3 standard cases
+                    // Measure standard test cases
                     result.BestTimes.Add(Measure(fn, DataGenerator.Sorted(n)));
                     result.AvgTimes.Add(Measure(fn, DataGenerator.Random(n)));
                     result.WorstTimes.Add(Measure(fn, DataGenerator.Reversed(n)));
@@ -92,7 +97,7 @@ namespace AlgorithmPerformanceEvaluator.Logic
         }
 
         /// <summary>
-        /// Manual Mode: Tests user-provided input data scaled to different sizes.
+        /// Manual Mode: Tests user-provided arrays scaled to different sizes.
         /// </summary>
         public async Task<EvaluationResult> RunManualAsync(
             Func<int[], object?> fn,
@@ -106,10 +111,8 @@ namespace AlgorithmPerformanceEvaluator.Logic
                 for (int i = 0; i < dataSets.Count; i++)
                 {
                     result.InputSizes.Add(sizes[i]);
-
                     double t = Measure(fn, dataSets[i]);
 
-                    // In manual mode, all time categories represent the same input shape
                     result.AvgTimes.Add(t);
                     result.BestTimes.Add(t);
                     result.WorstTimes.Add(t);
