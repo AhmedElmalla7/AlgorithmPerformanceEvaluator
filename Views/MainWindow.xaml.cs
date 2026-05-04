@@ -72,7 +72,7 @@ namespace AlgorithmPerformanceEvaluator
 
         private List<int> DetectSmartSizes(string code, string methodName)
         {
-            // Check for recursion to use micro-scales for O(2^n) algorithms
+            // 1. Recursion Check (O(2^n))
             bool isRecursive = Regex.Matches(code, $@"\b{methodName}\s*\(").Count >= 2 ||
                                Regex.IsMatch(code, @"\w+\s+(\w+)\(.*\)\s*\{[\s\S]*\b\1\s*\(");
 
@@ -82,12 +82,24 @@ namespace AlgorithmPerformanceEvaluator
                 return DataGenerator.GetExponentialSizes();
             }
 
-            // Count loops to downscale for heavy algorithms like O(n^2) or O(n^3)
+            // 2. Log-Linear Check (O(n log n))
+            // We look for sorting patterns or data splitting keywords
+            bool isLogLinear = Regex.IsMatch(code, @"\b(Sort|OrderBy|Divide|Pivot|Split|Merge)\b", RegexOptions.IgnoreCase);
+
+            // 3. Polynomial Check (O(n^2), O(n^3))
             int loopCount = Regex.Matches(code, @"\b(for|while)\b").Count;
 
-            if (loopCount >= 3) return new List<int> { 50, 100, 150, 200, 250 }; // O(n^3)
-            if (loopCount == 2) return DataGenerator.GetSmallSizes();            // O(n^2)
+            if (loopCount >= 3) return new List<int> { 50, 100, 150, 200, 250 };
+            if (loopCount == 2) return DataGenerator.GetSmallSizes();
 
+            // If sorting keywords are found, use specialized log-linear sizes
+            if (isLogLinear)
+            {
+                lblConfidence.Text = "Sorting pattern detected: using optimized log-linear scales.";
+                return DataGenerator.GetLogLinearSizes();
+            }
+
+            // 4. Default Case (O(n) or O(log n))
             lblConfidence.Text = "Standard scaling applied.";
             return DataGenerator.GetDefaultSizes();
         }
