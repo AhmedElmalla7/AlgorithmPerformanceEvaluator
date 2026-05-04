@@ -9,31 +9,32 @@ namespace AlgorithmPerformanceEvaluator.Logic
 {
     public class PerformanceRunner
     {
-        private const int    WarmupRuns  = 3;
-        private const int    MeasureRuns = 7;
-        private const double TimeoutMs   = 3000;   // abort a single run after 3 s
+        private const int WarmupRuns = 3;
+        private const int MeasureRuns = 7;
+        private const double TimeoutMs = 3000; // Limit each run to 3 seconds
 
         /// <summary>
-        /// Runs <paramref name="fn"/> on <paramref name="input"/> and returns the
-        /// trimmed-mean elapsed milliseconds (drops min and max to reduce noise).
-        /// Returns 0 if every attempt times out or throws.
+        /// Measures the execution time of a function using multiple samples.
+        /// Uses a trimmed mean (removes outliers) for higher accuracy.
         /// </summary>
         private double Measure(Func<int[], object?> fn, int[] input)
         {
-            // --- warm-up (not measured) ---
+            // --- 1. Warm-up Phase ---
+            // Run the code without measuring to let the JIT compiler optimize it
             for (int i = 0; i < WarmupRuns; i++)
             {
                 try { fn((int[])input.Clone()); }
-                catch { /* ignore */ }
+                catch { /* Ignore errors during warmup */ }
             }
 
+            // Cleanup memory before starting actual measurement
             GC.Collect();
             GC.WaitForPendingFinalizers();
             GC.Collect();
 
-            // --- measured runs ---
+            // --- 2. Measurement Phase ---
             var samples = new List<double>(MeasureRuns);
-            var sw      = new Stopwatch();
+            var sw = new Stopwatch();
 
             for (int run = 0; run < MeasureRuns; run++)
             {
@@ -46,20 +47,23 @@ namespace AlgorithmPerformanceEvaluator.Logic
                 double ms = sw.Elapsed.TotalMilliseconds;
                 samples.Add(ms);
 
-                if (ms > TimeoutMs) break;   // no point in more runs if already slow
+                // Stop if the execution is already too slow
+                if (ms > TimeoutMs) break;
             }
 
             if (samples.Count == 0) return 0;
             if (samples.Count == 1) return samples[0];
 
-            // Trimmed mean: drop the single fastest and single slowest sample
+            // --- 3. Result Calculation ---
+            // Sort samples and remove the fastest and slowest to avoid noise
             samples.Sort();
             var trimmed = samples.Skip(1).Take(samples.Count - 2).ToList();
+
             return trimmed.Count > 0 ? trimmed.Average() : samples.Average();
         }
 
         /// <summary>
-        /// Auto mode: generates sorted / random / reversed arrays for each size.
+        /// Automatic Mode: Tests sorted, random, and reversed data for each size.
         /// </summary>
         public async Task<EvaluationResult> RunAsync(
             Func<int[], object?> fn,
@@ -75,6 +79,7 @@ namespace AlgorithmPerformanceEvaluator.Logic
                     int n = sizes[i];
                     result.InputSizes.Add(n);
 
+                    // Test the 3 standard cases
                     result.BestTimes.Add(Measure(fn, DataGenerator.Sorted(n)));
                     result.AvgTimes.Add(Measure(fn, DataGenerator.Random(n)));
                     result.WorstTimes.Add(Measure(fn, DataGenerator.Reversed(n)));
@@ -87,8 +92,7 @@ namespace AlgorithmPerformanceEvaluator.Logic
         }
 
         /// <summary>
-        /// Manual mode: user supplies the base array which is expanded to each size.
-        /// All three case lists are filled with the same value (single input shape).
+        /// Manual Mode: Tests user-provided input data scaled to different sizes.
         /// </summary>
         public async Task<EvaluationResult> RunManualAsync(
             Func<int[], object?> fn,
@@ -104,6 +108,8 @@ namespace AlgorithmPerformanceEvaluator.Logic
                     result.InputSizes.Add(sizes[i]);
 
                     double t = Measure(fn, dataSets[i]);
+
+                    // In manual mode, all time categories represent the same input shape
                     result.AvgTimes.Add(t);
                     result.BestTimes.Add(t);
                     result.WorstTimes.Add(t);

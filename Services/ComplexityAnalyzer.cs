@@ -7,117 +7,79 @@ namespace AlgorithmPerformanceEvaluator.Services
 {
     public class ComplexityAnalyzer
     {
-        // Each class: (Label, Description, expected log-log slope)
+        // Target slopes for Log-Log regression
         private static readonly (string Name, string Desc, double Slope)[] _classes =
         {
             ("O(1)",       "Constant",      0.00),
-            ("O(log n)",   "Logarithmic",   0.35),
+            ("O(log n)",   "Logarithmic",   0.30),
             ("O(n)",       "Linear",        1.00),
-            ("O(n log n)", "Linearithmic",  1.20),
+            ("O(n log n)", "Linearithmic",  1.15),
             ("O(n²)",      "Quadratic",     2.00),
             ("O(n³)",      "Cubic",         3.00),
-            ("O(2ⁿ)",      "Exponential",   6.00),
+            ("O(2ⁿ)",      "Exponential",   5.00),
         };
 
         public EvaluationResult Analyze(EvaluationResult result)
         {
-            if (result.InputSizes.Count < 2)
-            {
-                result.Complexity = "N/A";
-                result.Description = "Not enough data points";
-                result.Confidence = 0;
-                return result;
-            }
+            if (result.InputSizes.Count < 2) return result;
 
-            // Use average times; fall back to worst if avg is all zeros
-            var times = result.AvgTimes.Any(t => t > 0)
-                ? result.AvgTimes
-                : result.WorstTimes;
+            // Prefer average times for stability
+            var times = result.AvgTimes.Any(t => t > 0) ? result.AvgTimes : result.WorstTimes;
 
-            // Filter out zero/negative measurements which break log
-            var validPairs = result.InputSizes
-                .Zip(times, (s, t) => (Size: s, Time: t))
-                .Where(p => p.Size > 0 && p.Time > 1e-9)
+            // Log-Log regression requires values > 0
+            var validPoints = result.InputSizes
+                .Zip(times, (s, t) => (Size: (double)s, Time: t))
+                .Where(p => p.Time > 1e-9)
                 .ToList();
 
-            if (validPairs.Count < 2)
+            if (validPoints.Count < 2)
             {
                 result.Complexity = "O(1)";
-                result.Description = "Constant (too fast to measure accurately)";
-                result.Confidence = 60;
+                result.Description = "Execution too fast to measure";
+                result.Confidence = 90;
                 return result;
             }
 
-            double slope = LogLogSlope(
-                validPairs.Select(p => (double)p.Size).ToList(),
-                validPairs.Select(p => p.Time).ToList()
-            );
-
-            // Find best matching complexity class
+            double slope = CalculateSlope(validPoints);
             var bestMatch = _classes.OrderBy(c => Math.Abs(c.Slope - slope)).First();
 
             result.Complexity = bestMatch.Name;
             result.Description = bestMatch.Desc;
 
-            // Confidence: starts at 100, penalised by distance from ideal slope
-            double diff = Math.Abs(bestMatch.Slope - slope);
-            double r2 = ComputeR2(
-                validPairs.Select(p => (double)p.Size).ToList(),
-                validPairs.Select(p => p.Time).ToList(),
-                bestMatch.Slope
-            );
-
-            // Blend slope-distance penalty with R² quality
-            double confidenceFromSlope = Math.Max(0, 100 - diff * 35);
-            double confidenceFromR2 = r2 * 100;
-            result.Confidence = Math.Round((confidenceFromSlope * 0.6 + confidenceFromR2 * 0.4)
-                                           .Clamp(30, 99), 1);
+            // Calculate accuracy score
+            double r2 = CalculateR2(validPoints, bestMatch.Slope);
+            result.Confidence = Math.Round(Math.Clamp(r2 * 100, 30, 99), 1);
 
             return result;
         }
 
-        // Log-log linear regression slope  (slope ≈ exponent p in T(n) = a·nᵖ)
-        private static double LogLogSlope(List<double> sizes, List<double> times)
+        private static double CalculateSlope(List<(double Size, double Time)> points)
         {
-            var x = sizes.Select(s => Math.Log(s)).ToArray();
-            var y = times.Select(t => Math.Log(Math.Max(t, 1e-9))).ToArray();
+            var x = points.Select(p => Math.Log(p.Size)).ToArray();
+            var y = points.Select(p => Math.Log(p.Time)).ToArray();
 
-            int n = x.Length;
-            double sx = x.Sum();
-            double sy = y.Sum();
-            double sxy = x.Zip(y, (a, b) => a * b).Sum();
-            double sx2 = x.Sum(a => a * a);
+            double n = x.Length;
+            double sumX = x.Sum();
+            double sumY = y.Sum();
+            double sumXY = x.Zip(y, (a, b) => a * b).Sum();
+            double sumX2 = x.Sum(a => a * a);
 
-            double denom = n * sx2 - sx * sx;
-            if (Math.Abs(denom) < 1e-10) return 0;
-
-            return (n * sxy - sx * sy) / denom;
+            double divisor = (n * sumX2 - sumX * sumX);
+            return Math.Abs(divisor) < 1e-10 ? 0 : (n * sumXY - sumX * sumY) / divisor;
         }
 
-        // Coefficient of determination R² for the chosen complexity model
-        // We fit  log(T) = a + slope·log(N)  and compute R² on log scale
-        private static double ComputeR2(List<double> sizes, List<double> times, double slope)
+        private static double CalculateR2(List<(double Size, double Time)> points, double expectedSlope)
         {
-            var logN = sizes.Select(s => Math.Log(s)).ToArray();
-            var logT = times.Select(t => Math.Log(Math.Max(t, 1e-9))).ToArray();
+            var logN = points.Select(p => Math.Log(p.Size)).ToArray();
+            var logT = points.Select(p => Math.Log(p.Time)).ToArray();
 
-            int n = logN.Length;
-            double meanLogT = logT.Average();
+            double avgLogT = logT.Average();
+            double intercept = avgLogT - (expectedSlope * logN.Average());
 
-            // Intercept: a = mean(logT) - slope * mean(logN)
-            double a = meanLogT - slope * logN.Average();
+            double ssTot = logT.Sum(t => Math.Pow(t - avgLogT, 2));
+            double ssRes = logN.Zip(logT, (n, t) => Math.Pow(t - (intercept + expectedSlope * n), 2)).Sum();
 
-            double ssTot = logT.Sum(y => Math.Pow(y - meanLogT, 2));
-            double ssRes = logN.Zip(logT, (x, y) => Math.Pow(y - (a + slope * x), 2)).Sum();
-
-            if (ssTot < 1e-12) return 1.0;   // perfectly flat — constant
-            return Math.Max(0, 1.0 - ssRes / ssTot);
+            return ssTot < 1e-12 ? 1.0 : Math.Max(0, 1.0 - (ssRes / ssTot));
         }
-    }
-
-    internal static class DoubleExtensions
-    {
-        public static double Clamp(this double value, double min, double max)
-            => Math.Max(min, Math.Min(max, value));
     }
 }
