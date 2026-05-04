@@ -16,7 +16,7 @@ namespace AlgorithmPerformanceEvaluator.Services
             ("O(n log n)", "Linearithmic",  1.15),
             ("O(n²)",      "Quadratic",     2.00),
             ("O(n³)",      "Cubic",         3.00),
-            ("O(2ⁿ)",      "Exponential",   5.00),
+            ("O(2ⁿ)",      "Exponential",   3.80)
         };
 
         public EvaluationResult Analyze(EvaluationResult result)

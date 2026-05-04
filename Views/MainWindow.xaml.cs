@@ -18,31 +18,14 @@ namespace AlgorithmPerformanceEvaluator
         public MainWindow()
         {
             InitializeComponent();
+
+            // Set default boilerplate code in the editor
             txtCodeEditor.Text =
                 "public object MyAlgorithm(int[] arr)\n" +
                 "{\n" +
-                "    // Your logic here\n" +
-                "    Array.Sort(arr);\n" +
+                "    // Write your algorithm here. \n\n" +
                 "    return arr;\n" +
                 "}";
-        }
-
-        private void btnManual_Click(object sender, RoutedEventArgs e)
-        {
-            SetMode(isManual: true);
-        }
-
-        private void btnAuto_Click(object sender, RoutedEventArgs e)
-        {
-            SetMode(isManual: false);
-        }
-
-        private void SetMode(bool isManual)
-        {
-            manualInputPanel.Visibility = isManual ? Visibility.Visible : Visibility.Collapsed;
-            txtCodeEditor.Height = isManual ? 350 : 400;
-            btnManual.Background = isManual ? System.Windows.Media.Brushes.DimGray : System.Windows.Media.Brushes.Transparent;
-            btnAuto.Background = isManual ? System.Windows.Media.Brushes.Transparent : System.Windows.Media.Brushes.DimGray;
         }
 
         private async void btnRun_Click(object sender, RoutedEventArgs e)
@@ -58,27 +41,27 @@ namespace AlgorithmPerformanceEvaluator
 
                 EvaluationResult result;
 
+                // Toggle between Manual and Auto mode
                 if (manualInputPanel.Visibility == Visibility.Visible)
                 {
-                    // Manual Mode: Expand user input to test scalability
                     var baseArray = DataGenerator.Parse(txtArrayInput.Text);
                     var sizes = DataGenerator.GetSmartSizes(baseArray.Length);
                     result = await _runner.RunManualAsync(compiledFunction, DataGenerator.Expand(baseArray, sizes), sizes);
                 }
                 else
                 {
-                    // Auto Mode: Smart Scaling based on code structure
+                    // Detect appropriate input sizes based on code structure
                     var sizes = DetectSmartSizes(code, methodName);
                     result = await _runner.RunAsync(compiledFunction, sizes);
                 }
 
+                // Analyze timing results to determine Big O complexity
                 var finalResult = _analyzer.Analyze(result);
                 DisplayResults(finalResult);
             }
             catch (Exception ex)
             {
                 MessageBox.Show(ex.Message, "Error");
-                lblComplexity.Text = "O(?)";
             }
             finally
             {
@@ -89,25 +72,21 @@ namespace AlgorithmPerformanceEvaluator
 
         private List<int> DetectSmartSizes(string code, string methodName)
         {
-            // Simple heuristic to avoid crashing the UI with heavy algorithms
-            bool isRecursive = Regex.Matches(code, $@"\b{methodName}\s*\(").Count >= 2;
-            int loopCount = Regex.Matches(code, @"\b(for|while)\b").Count;
+            // Check for recursion to use micro-scales for O(2^n) algorithms
+            bool isRecursive = Regex.Matches(code, $@"\b{methodName}\s*\(").Count >= 2 ||
+                               Regex.IsMatch(code, @"\w+\s+(\w+)\(.*\)\s*\{[\s\S]*\b\1\s*\(");
 
             if (isRecursive)
             {
-                lblConfidence.Text = "Recursion detected: using small inputs.";
+                lblConfidence.Text = "Recursion detected: using micro-scales.";
                 return DataGenerator.GetExponentialSizes();
             }
-            if (loopCount >= 3)
-            {
-                lblConfidence.Text = "High nesting detected: scaling down.";
-                return new List<int> { 50, 100, 150, 200, 250 };
-            }
-            if (loopCount == 2)
-            {
-                lblConfidence.Text = "Quadratic pattern detected.";
-                return DataGenerator.GetSmallSizes();
-            }
+
+            // Count loops to downscale for heavy algorithms like O(n^2) or O(n^3)
+            int loopCount = Regex.Matches(code, @"\b(for|while)\b").Count;
+
+            if (loopCount >= 3) return new List<int> { 50, 100, 150, 200, 250 }; // O(n^3)
+            if (loopCount == 2) return DataGenerator.GetSmallSizes();            // O(n^2)
 
             lblConfidence.Text = "Standard scaling applied.";
             return DataGenerator.GetDefaultSizes();
@@ -118,6 +97,15 @@ namespace AlgorithmPerformanceEvaluator
             lblComplexity.Text = result.Complexity;
             lblConfidence.Text = $"{result.Confidence}% Confidence — {result.Description}";
             ChartHelper.Render(MyChart, result);
+        }
+
+        private void btnManual_Click(object sender, RoutedEventArgs e) => SetMode(true);
+        private void btnAuto_Click(object sender, RoutedEventArgs e) => SetMode(false);
+
+        private void SetMode(bool isManual)
+        {
+            manualInputPanel.Visibility = isManual ? Visibility.Visible : Visibility.Collapsed;
+            txtCodeEditor.Height = isManual ? 350 : 400;
         }
     }
 }
